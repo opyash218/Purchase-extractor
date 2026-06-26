@@ -6,7 +6,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from extractor import HIGH_SIDE_HEADERS, LOW_SIDE_HEADERS
 
@@ -37,7 +37,11 @@ def extract_spreadsheet_id(value: str) -> str:
 
 
 class GoogleSheetsClient:
-    def __init__(self, service_account_json_path: str):
+    def __init__(
+        self,
+        service_account_json_path: str = "service_account.json",
+        service_account_info: Optional[Mapping[str, Any]] = None,
+    ):
         try:
             import gspread
             from google.oauth2.service_account import Credentials
@@ -46,14 +50,19 @@ class GoogleSheetsClient:
                 "Missing Google Sheets packages. Run: pip install -r requirements.txt"
             ) from exc
 
-        service_account_json_path = os.path.expanduser(service_account_json_path or "service_account.json")
-        if not os.path.exists(service_account_json_path):
-            raise FileNotFoundError(
-                f"Service account JSON not found: {service_account_json_path}"
-            )
+        if service_account_info:
+            info = dict(service_account_info)
+            if isinstance(info.get("private_key"), str):
+                info["private_key"] = info["private_key"].replace("\\n", "\n")
+        else:
+            service_account_json_path = os.path.expanduser(service_account_json_path or "service_account.json")
+            if not os.path.exists(service_account_json_path):
+                raise FileNotFoundError(
+                    f"Service account JSON not found: {service_account_json_path}"
+                )
 
-        with open(service_account_json_path, "r", encoding="utf-8") as fh:
-            info = json.load(fh)
+            with open(service_account_json_path, "r", encoding="utf-8") as fh:
+                info = json.load(fh)
         self.service_account_email = info.get("client_email", "")
         credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
         self.client = gspread.authorize(credentials)

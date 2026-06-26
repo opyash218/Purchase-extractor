@@ -26,7 +26,27 @@ WIDE_PREVIEW_COLUMNS = {
 }
 
 
+def service_account_info_from_secrets() -> Dict:
+    try:
+        if "gcp_service_account" not in st.secrets:
+            return {}
+        return dict(st.secrets["gcp_service_account"])
+    except Exception:
+        return {}
+
+
+def create_sheets_client(config: Dict) -> GoogleSheetsClient:
+    service_account_info = service_account_info_from_secrets()
+    if service_account_info:
+        return GoogleSheetsClient(service_account_info=service_account_info)
+    return GoogleSheetsClient(config.get("service_account_json", "service_account.json"))
+
+
 def service_account_email_from_config(config: Dict) -> str:
+    service_account_info = service_account_info_from_secrets()
+    if service_account_info:
+        return service_account_info.get("client_email") or DEFAULT_SERVICE_ACCOUNT_EMAIL
+
     service_json = config.get("service_account_json", "service_account.json") or "service_account.json"
     service_json = os.path.expanduser(service_json)
     try:
@@ -78,7 +98,7 @@ def _show_check_results(results) -> bool:
 
 def check_connection(config: Dict) -> bool:
     try:
-        client = GoogleSheetsClient(config.get("service_account_json", "service_account.json"))
+        client = create_sheets_client(config)
         st.info(f"Using service account: {client.service_account_email or service_account_email_from_config(config)}")
         results = client.check_all(config)
         return _show_check_results(results)
@@ -110,7 +130,7 @@ with settings_tab:
         service_json = st.text_input(
             "Service account JSON path",
             value=config.get("service_account_json", "service_account.json"),
-            help="Keep the JSON key file in this project folder, or paste the full path here.",
+            help="Used only for local runs. On Streamlit Cloud, the app uses st.secrets['gcp_service_account'].",
         )
         st.markdown("**High Side / OFN target**")
         high_sheet_id = st.text_input(
@@ -212,7 +232,7 @@ with upload_tab:
             append_clicked = st.button("Send to Google Sheet", type="primary")
 
             if append_clicked:
-                client = GoogleSheetsClient(config.get("service_account_json", "service_account.json"))
+                client = create_sheets_client(config)
                 target = _target_for_doc_type(config, doc_type)
                 append_rows = edited_df.fillna("").to_dict(orient="records")
                 missing_rows = client.missing_dict_rows(
@@ -248,7 +268,7 @@ with guide_tab:
     current_service_account_email = service_account_email_from_config(config)
     st.markdown(
         f"""
-1. Put your service account JSON key in this folder as `service_account.json`, or set its path in **Settings**.
+1. On Streamlit Cloud, add the service account under `[gcp_service_account]` in **Secrets**. For local runs, put the JSON key in this folder as `service_account.json`, or set its path in **Settings**.
 2. Share the High Side and Low Side Google Sheets with `{current_service_account_email}` as **Editor**.
 3. In each Google Sheet, open **Extensions > Apps Script**, paste `appscript/setup_sheets.gs`, save, and run:
    - `setupHighSide()` for the High Side sheet.
