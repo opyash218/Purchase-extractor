@@ -181,9 +181,12 @@ class GoogleSheetsClient:
         row: Dict[str, object],
         headers: Sequence[str],
         ignore_sr_no: bool,
+        signature_headers: Optional[Sequence[str]] = None,
     ) -> Tuple[str, ...]:
-        signature_headers = [header for header in headers if not (ignore_sr_no and header == "SR NO")]
-        return tuple(cls._normalize_cell(row.get(header, "")) for header in signature_headers)
+        selected_headers = list(signature_headers or headers)
+        if ignore_sr_no:
+            selected_headers = [header for header in selected_headers if header != "SR NO"]
+        return tuple(cls._normalize_cell(row.get(header, "")) for header in selected_headers)
 
     def get_existing_rows(
         self,
@@ -208,14 +211,26 @@ class GoogleSheetsClient:
         rows: List[Dict[str, object]],
         headers: Sequence[str],
         auto_serial: bool = True,
+        duplicate_key_headers: Optional[Sequence[str]] = None,
     ) -> List[Dict[str, object]]:
         existing_rows = self.get_existing_rows(spreadsheet_id, worksheet_name, headers)
         existing_counter = Counter(
-            self._row_signature(row, headers, ignore_sr_no=auto_serial) for row in existing_rows
+            self._row_signature(
+                row,
+                headers,
+                ignore_sr_no=auto_serial,
+                signature_headers=duplicate_key_headers,
+            )
+            for row in existing_rows
         )
         missing_rows: List[Dict[str, object]] = []
         for row in rows:
-            signature = self._row_signature(row, headers, ignore_sr_no=auto_serial)
+            signature = self._row_signature(
+                row,
+                headers,
+                ignore_sr_no=auto_serial,
+                signature_headers=duplicate_key_headers,
+            )
             if existing_counter[signature] > 0:
                 existing_counter[signature] -= 1
             else:

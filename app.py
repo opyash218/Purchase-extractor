@@ -24,6 +24,10 @@ WIDE_PREVIEW_COLUMNS = {
     "ITEM DESCRIPTION",
     "PROJECT NAME/ CLIENT NAME",
 }
+DUPLICATE_KEY_HEADERS = {
+    DOC_TYPE_HIGH: ["OFN NO", "ITEM DESCRIPTION", "QUANTITY", "PURCHASE RATE", "PURCHASE AMOUNT"],
+    DOC_TYPE_LOW: ["PO NO", "DESCRIPTION", "QTY", "RATE", "AMOUNT"],
+}
 
 
 def service_account_info_from_secrets() -> Dict:
@@ -67,6 +71,10 @@ def _target_for_doc_type(config: Dict, doc_type: str) -> Dict:
 
 def _expected_headers(doc_type: str) -> List[str]:
     return HIGH_SIDE_HEADERS if doc_type == DOC_TYPE_HIGH else LOW_SIDE_HEADERS
+
+
+def _duplicate_key_headers(doc_type: str) -> List[str]:
+    return DUPLICATE_KEY_HEADERS.get(doc_type, _expected_headers(doc_type))
 
 
 def _preview_column_config(headers: List[str]) -> Dict:
@@ -241,6 +249,7 @@ with upload_tab:
                     rows=append_rows,
                     headers=_expected_headers(doc_type),
                     auto_serial=auto_serial,
+                    duplicate_key_headers=_duplicate_key_headers(doc_type),
                 )
                 if not missing_rows:
                     st.info("All extracted rows are already present in the sheet. Nothing new was added.")
