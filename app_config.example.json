@@ -1,0 +1,13 @@
+{
+  "service_account_json": "service_account.json",
+  "targets": {
+    "high_side": {
+      "spreadsheet_id": "PASTE_HIGH_SIDE_SPREADSHEET_ID_HERE",
+      "worksheet_name": "HS ENTRY"
+    },
+    "low_side": {
+      "spreadsheet_id": "PASTE_LOW_SIDE_SPREADSHEET_ID_HERE",
+      "worksheet_name": "LS ENTRY"
+    }
+  }
+}
