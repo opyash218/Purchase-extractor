@@ -1,1 +1,5 @@
-from app import *  # noqa: F401,F403
+import importlib
+
+import app as purchase_extractor_app
+
+importlib.reload(purchase_extractor_app)
