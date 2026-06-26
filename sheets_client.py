@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections import Counter
 from dataclasses import dataclass
-from typing import Dict, List, Sequence
+from decimal import Decimal, InvalidOperation
+from typing import Dict, List, Sequence, Tuple
 
 from extractor import HIGH_SIDE_HEADERS, LOW_SIDE_HEADERS
 
@@ -149,6 +151,67 @@ class GoogleSheetsClient:
             except Exception:
                 continue
         return max_seen + 1
+
+    @staticmethod
+    def _normalize_cell(value: object) -> str:
+        text = "" if value is None else str(value).strip()
+        if not text:
+            return ""
+        compact = " ".join(text.split())
+        numeric_candidate = compact.replace(",", "")
+        if re.fullmatch(r"-?\d+(?:\.\d+)?", numeric_candidate):
+            try:
+                return format(Decimal(numeric_candidate).normalize(), "f").rstrip("0").rstrip(".") or "0"
+            except InvalidOperation:
+                pass
+        return compact.upper()
+
+    @classmethod
+    def _row_signature(
+        cls,
+        row: Dict[str, object],
+        headers: Sequence[str],
+        ignore_sr_no: bool,
+    ) -> Tuple[str, ...]:
+        signature_headers = [header for header in headers if not (ignore_sr_no and header == "SR NO")]
+        return tuple(cls._normalize_cell(row.get(header, "")) for header in signature_headers)
+
+    def get_existing_rows(
+        self,
+        spreadsheet_id: str,
+        worksheet_name: str,
+        headers: Sequence[str],
+    ) -> List[Dict[str, str]]:
+        _, worksheet = self._open_worksheet(spreadsheet_id, worksheet_name)
+        raw_rows = worksheet.get(f"A4:{chr(64 + len(headers))}")
+        existing_rows: List[Dict[str, str]] = []
+        for raw_row in raw_rows:
+            padded = list(raw_row[: len(headers)]) + [""] * max(0, len(headers) - len(raw_row))
+            row_dict = {header: padded[idx] for idx, header in enumerate(headers)}
+            if any(self._normalize_cell(value) for value in row_dict.values()):
+                existing_rows.append(row_dict)
+        return existing_rows
+
+    def missing_dict_rows(
+        self,
+        spreadsheet_id: str,
+        worksheet_name: str,
+        rows: List[Dict[str, object]],
+        headers: Sequence[str],
+        auto_serial: bool = True,
+    ) -> List[Dict[str, object]]:
+        existing_rows = self.get_existing_rows(spreadsheet_id, worksheet_name, headers)
+        existing_counter = Counter(
+            self._row_signature(row, headers, ignore_sr_no=auto_serial) for row in existing_rows
+        )
+        missing_rows: List[Dict[str, object]] = []
+        for row in rows:
+            signature = self._row_signature(row, headers, ignore_sr_no=auto_serial)
+            if existing_counter[signature] > 0:
+                existing_counter[signature] -= 1
+            else:
+                missing_rows.append(row)
+        return missing_rows
 
     def append_dict_rows(
         self,

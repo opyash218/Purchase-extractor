@@ -215,14 +215,31 @@ with upload_tab:
                 client = GoogleSheetsClient(config.get("service_account_json", "service_account.json"))
                 target = _target_for_doc_type(config, doc_type)
                 append_rows = edited_df.fillna("").to_dict(orient="records")
-                inserted = client.append_dict_rows(
+                missing_rows = client.missing_dict_rows(
                     spreadsheet_id=target.get("spreadsheet_id", ""),
                     worksheet_name=target.get("worksheet_name", ""),
                     rows=append_rows,
                     headers=_expected_headers(doc_type),
                     auto_serial=auto_serial,
                 )
-                st.success(f"Uploaded {inserted} rows to {target.get('worksheet_name')}.")
+                if not missing_rows:
+                    st.info("All extracted rows are already present in the sheet. Nothing new was added.")
+                    st.stop()
+                inserted = client.append_dict_rows(
+                    spreadsheet_id=target.get("spreadsheet_id", ""),
+                    worksheet_name=target.get("worksheet_name", ""),
+                    rows=missing_rows,
+                    headers=_expected_headers(doc_type),
+                    auto_serial=auto_serial,
+                )
+                already_present = len(append_rows) - len(missing_rows)
+                if already_present > 0:
+                    st.success(
+                        f"Uploaded {inserted} missing rows to {target.get('worksheet_name')}. "
+                        f"Skipped {already_present} rows already present in the sheet."
+                    )
+                else:
+                    st.success(f"Uploaded {inserted} rows to {target.get('worksheet_name')}.")
         except Exception as exc:
             st.error(str(exc))
 
