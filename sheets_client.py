@@ -195,7 +195,10 @@ class GoogleSheetsClient:
         headers: Sequence[str],
     ) -> List[Dict[str, str]]:
         _, worksheet = self._open_worksheet(spreadsheet_id, worksheet_name)
-        raw_rows = worksheet.get(f"A4:{chr(64 + len(headers))}")
+        raw_rows = worksheet.get(
+            f"A4:{chr(64 + len(headers))}",
+            value_render_option="UNFORMATTED_VALUE",
+        )
         existing_rows: List[Dict[str, str]] = []
         for raw_row in raw_rows:
             padded = list(raw_row[: len(headers)]) + [""] * max(0, len(headers) - len(raw_row))
